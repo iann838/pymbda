@@ -6,6 +6,8 @@ resources:
     init [folder_name]
     build [folder_name]
     deploy [folder_name]
+    publish [folder_name]
+    alias [folder_name] [alias_name] [version]
     gentoken [folder_name]
 
   layers        AWS Lambda Layers

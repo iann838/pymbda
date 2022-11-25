@@ -65,7 +65,7 @@ def functions_init(args: List[str]):
         "ephemeralStorageSize": input_int("> Ephemeral Storage Size [unit: MB; range: 512~inf; default: 512]: ", min=512, default=512),
     }
     template_vars["handlerPythonFile"], template_vars["handlerFunctionName"] = template_vars["handler"].split(".")
-    work_dir.mkdir()
+    work_dir.mkdir(parents=True)
 
     with open(work_dir / ".dockerignore", "w+") as f:
         f.write(replace_template_vars(INIT_DOCKERIGNORE, template_vars))
@@ -101,7 +101,7 @@ def layers_init(args: List[str]):
         "runtime": input("> Runtime [default: python3.8]: ") or "python3.8",
         "architecture": input_choice("> Architecture [select: arm64, x86-64; default: arm64]: ", ("arm64", "x86-64", "")) or "arm64",
     }
-    work_dir.mkdir()
+    work_dir.mkdir(parents=True)
 
     with open(work_dir / ".dockerignore", "w+") as f:
         f.write(replace_template_vars(INIT_DOCKERIGNORE, template_vars))
@@ -130,21 +130,25 @@ def hybrid_gentoken(resource: str, args: List[str]):
     pymbda_print("Token generated successfully")
 
 
-def layers_build(args: List[str]):
-    parser = argparse.ArgumentParser(description="Build AWS Lambda Layer")
-    parser.add_argument("folder_name", type=str)
-    parser.add_argument('--size-profile', type=int, default=0)
-    parsed_args = vars(parser.parse_args(args))
-
-    pymbda_print("Reading layer cfg ...")
-    work_dir = Path(f"layers/{parsed_args['folder_name']}")
-    explore_aws_cfg([work_dir, Path()])
+def _layer_read_cfg(work_dir: Path):
     with open(work_dir / "layer.json") as f:
         try:
             layer = dacite.from_dict(Layer, json.load(f), config=dacite.Config(strict=True))
         except dacite.DaciteError as e:
             pymbda_print(e)
             sys.exit(1)
+    return layer
+
+
+def layers_build(args: List[str]):
+    parser = argparse.ArgumentParser(description="Build AWS Lambda Layer")
+    parser.add_argument("folder_name", type=str)
+    parser.add_argument('--size-profile', type=int, default=0)
+    parsed_args = vars(parser.parse_args(args))
+
+    work_dir = Path(f"layers/{parsed_args['folder_name']}")
+    explore_aws_cfg([work_dir, Path()])
+    layer = _layer_read_cfg(work_dir)
 
     pymbda_print("Parsing build command ...")
     build_args_inject = ""
@@ -187,6 +191,16 @@ def layers_build(args: List[str]):
         shutil.rmtree(work_dir / "layer", ignore_errors=True)
 
 
+def _functions_read_cfg(work_dir: Path):
+    pymbda_print("Reading function cfg ...")
+    with open(work_dir / "function.json") as f:
+        try:
+            function = dacite.from_dict(Function, json.load(f), config=dacite.Config(strict=True))
+        except dacite.DaciteError as e:
+            pymbda_print(e)
+            sys.exit(1)
+    return function
+
 
 def functions_build(args: List[str]):
     parser = argparse.ArgumentParser(description="Build AWS Lambda Function")
@@ -194,15 +208,9 @@ def functions_build(args: List[str]):
     parser.add_argument('--size-profile', type=int, default=0)
     parsed_args = vars(parser.parse_args(args))
 
-    pymbda_print("Reading function cfg ...")
     work_dir = Path(f"functions/{parsed_args['folder_name']}")
     explore_aws_cfg([work_dir, Path()])
-    with open(work_dir / "function.json") as f:
-        try:
-            function = dacite.from_dict(Function, json.load(f), config=dacite.Config(strict=True))
-        except dacite.DaciteError as e:
-            pymbda_print(e)
-            sys.exit(1)
+    function = _functions_read_cfg(work_dir)
 
     pymbda_print("Parsing build command ...")
     build_args_inject = ""
@@ -254,14 +262,8 @@ def layers_deploy(args: List[str]):
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
 
-    pymbda_print("Reading layer cfg ...")
-    with open(work_dir / "layer.json") as f:
-        try:
-            layer = dacite.from_dict(Layer, json.load(f), config=dacite.Config(strict=True))
-        except dacite.DaciteError as e:
-            pymbda_print(e)
-            sys.exit(1)
-    
+    layer = _layer_read_cfg(work_dir)
+
     with open(work_dir / "layer.zip", "rb") as zip:
         pymbda_print("Deploying layer ...")
         aws_layer = client.publish_layer_version(
@@ -288,13 +290,7 @@ def functions_deploy(args: List[str]):
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
 
-    pymbda_print("Reading function cfg ...")
-    with open(work_dir / "function.json") as f:
-        try:
-            function = dacite.from_dict(Function, json.load(f), config=dacite.Config(strict=True))
-        except dacite.DaciteError as e:
-            pymbda_print(e)
-            sys.exit(1)
+    function = _functions_read_cfg(work_dir)
 
     try:
         client.get_function(FunctionName=function.name)
@@ -368,17 +364,47 @@ def functions_publish(args: List[str]):
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
 
-    pymbda_print("Reading function cfg ...")
-    with open(work_dir / "function.json") as f:
-        try:
-            function = dacite.from_dict(Function, json.load(f), config=dacite.Config(strict=True))
-        except dacite.DaciteError as e:
-            pymbda_print(e)
-            sys.exit(1)
+    function = _functions_read_cfg(work_dir)
 
     aws_function = client.publish_version(FunctionName=function.name)
     aws_function.pop("ResponseMetadata", None)
     history_append(work_dir / "function-history.json", "publishments", aws_function)
+    pymbda_print("Updated function-history.json")
+
+
+def functions_alias(args: List[str]):
+    parser = argparse.ArgumentParser(description="Publish AWS Lambda Function")
+    parser.add_argument("folder_name", type=str)
+    parser.add_argument("alias_name", type=str)
+    parser.add_argument("version", type=str)
+    parsed_args = vars(parser.parse_args(args))
+
+    work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    explore_aws_cfg([work_dir, Path()])
+    client = boto3.client("lambda")
+
+    function = _functions_read_cfg(work_dir)
+
+    try:
+        client.get_alias(FunctionName=function.name, Name=parsed_args['alias_name'])
+        alias_exists = True
+    except client.exceptions.ResourceNotFoundException:
+        alias_exists = False
+
+    if not alias_exists:
+        aws_function_alias = client.create_alias(
+            FunctionName=function.name,
+            Name=parsed_args['alias_name'],
+            FunctionVersion=parsed_args['version']
+        )
+    else:
+        aws_function_alias = client.update_alias(
+            FunctionName=function.name,
+            Name=parsed_args['alias_name'],
+            FunctionVersion=parsed_args['version']
+        )
+    aws_function_alias.pop("ResponseMetadata", None)
+    history_append(work_dir / "function-history.json", "aliases", aws_function_alias)
     pymbda_print("Updated function-history.json")
 
 
