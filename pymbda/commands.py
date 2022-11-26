@@ -38,7 +38,6 @@ from .utils import (
     profile_dir_size,
     pymbda_print,
     replace_template_vars,
-    uuid64_double,
 )
 
 
