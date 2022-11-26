@@ -52,6 +52,7 @@ def functions_init(args: List[str]):
         return
 
     work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    pymbda_dir = work_dir / "__pymbda__/"
 
     template_vars = {
         "name": parsed_args['folder_name'],
@@ -66,19 +67,20 @@ def functions_init(args: List[str]):
     }
     template_vars["handlerPythonFile"], template_vars["handlerFunctionName"] = template_vars["handler"].split(".")
     work_dir.mkdir(parents=True)
+    pymbda_dir.mkdir(parents=True)
 
     with open(work_dir / ".dockerignore", "w+") as f:
         f.write(replace_template_vars(INIT_DOCKERIGNORE, template_vars))
-    with open(work_dir / "Dockerfile", "w+") as f:
+    with open(pymbda_dir / "Dockerfile", "w+") as f:
         alt_template_vars = template_vars.copy()
         if alt_template_vars["architecture"] == "x86-64":
             alt_template_vars["architecture"] = "amd64"
         f.write(replace_template_vars(FUNCTION_PYTHON_INIT_DOCKERFILE, alt_template_vars))
-    with open(work_dir / "function.json", "w+") as f:
+    with open(pymbda_dir / "function.json", "w+") as f:
         f.write(replace_template_vars(FUNCTION_INIT_JSON, template_vars))
-    with open(work_dir / "requirements.txt", "w+") as f:
+    with open(pymbda_dir / "requirements.txt", "w+") as f:
         f.write(replace_template_vars(FUNCTION_INIT_REQUIREMENTS_TXT, template_vars))
-    with open(work_dir / (template_vars["handlerPythonFile"] + ".py"), "w+") as f:
+    with open(pymbda_dir / (template_vars["handlerPythonFile"] + ".py"), "w+") as f:
         f.write(replace_template_vars(FUNCTION_HANDLER, template_vars))
     pymbda_print(f"Successfully initiated function {parsed_args['folder_name']}")
     pymbda_print(f"Further configurations can be made directly on function.json")
@@ -94,6 +96,7 @@ def layers_init(args: List[str]):
         return
 
     work_dir = Path(f"layers/{parsed_args['folder_name']}")
+    pymbda_dir = work_dir / "__pymbda__/"
 
     template_vars = {
         "name": parsed_args['folder_name'],
@@ -102,32 +105,21 @@ def layers_init(args: List[str]):
         "architecture": input_choice("> Architecture [select: arm64, x86-64; default: arm64]: ", ("arm64", "x86-64", "")) or "arm64",
     }
     work_dir.mkdir(parents=True)
+    pymbda_dir.mkdir(parents=True)
 
     with open(work_dir / ".dockerignore", "w+") as f:
         f.write(replace_template_vars(INIT_DOCKERIGNORE, template_vars))
-    with open(work_dir / "Dockerfile", "w+") as f:
+    with open(pymbda_dir / "Dockerfile", "w+") as f:
         alt_template_vars = template_vars.copy()
         if alt_template_vars["architecture"] == "x86-64":
             alt_template_vars["architecture"] = "amd64"
         f.write(replace_template_vars(LAYER_PYTHON_INIT_DOCKERFILE, alt_template_vars))
-    with open(work_dir / "layer.json", "w+") as f:
+    with open(pymbda_dir / "layer.json", "w+") as f:
         f.write(replace_template_vars(LAYER_INIT_JSON, template_vars))
-    with open(work_dir / "requirements.txt", "w+") as f:
+    with open(pymbda_dir / "requirements.txt", "w+") as f:
         f.write(replace_template_vars(LAYER_INIT_REQUIREMENTS_TXT, template_vars))
     pymbda_print(f"Successfully initiated layer {parsed_args['folder_name']}")
     pymbda_print(f"Further configurations can be made directly on layer.json")
-
-
-def hybrid_gentoken(resource: str, args: List[str]):
-    parser = argparse.ArgumentParser(description="Build AWS Lambda Layer")
-    parser.add_argument("folder_name", type=str)
-    parsed_args = vars(parser.parse_args(args))
-
-    work_dir = Path(f"{resource}/{parsed_args['folder_name']}")
-    pymbda_print("Generating token ...")
-    with open(work_dir / "token.txt") as f:
-        f.write(uuid64_double())
-    pymbda_print("Token generated successfully")
 
 
 def _layer_read_cfg(work_dir: Path):
@@ -147,8 +139,9 @@ def layers_build(args: List[str]):
     parsed_args = vars(parser.parse_args(args))
 
     work_dir = Path(f"layers/{parsed_args['folder_name']}")
+    pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
-    layer = _layer_read_cfg(work_dir)
+    layer = _layer_read_cfg(pymbda_dir)
 
     pymbda_print("Parsing build command ...")
     build_args_inject = ""
@@ -181,14 +174,14 @@ def layers_build(args: List[str]):
             profile_dir_size(layer_dir)
         pymbda_print(f"Layer uncompressed size: {layer_uncompressed_size}")
         pymbda_print(f"Layer compressed size: {layer_compressed_size}")
-        history_set(work_dir / "layer-history.json", "lastBuild", {
+        history_set(pymbda_dir / "layer-history.json", "lastBuild", {
             "uncompressedSize": layer_uncompressed_size,
             "compressedSize": layer_compressed_size,
             "createdDate": datetime.now().isoformat()
         })
         pymbda_print("Updated layer-history.json")
     finally:
-        shutil.rmtree(work_dir / "layer", ignore_errors=True)
+        shutil.rmtree(layer_dir, ignore_errors=True)
 
 
 def _functions_read_cfg(work_dir: Path):
@@ -209,8 +202,9 @@ def functions_build(args: List[str]):
     parsed_args = vars(parser.parse_args(args))
 
     work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
-    function = _functions_read_cfg(work_dir)
+    function = _functions_read_cfg(pymbda_dir)
 
     pymbda_print("Parsing build command ...")
     build_args_inject = ""
@@ -243,14 +237,14 @@ def functions_build(args: List[str]):
             profile_dir_size(function_dir)
         pymbda_print(f"Function uncompressed size: {function_uncompressed_size}")
         pymbda_print(f"Function compressed size: {function_compressed_size}")
-        history_set(work_dir / "function-history.json", "lastBuild", {
+        history_set(pymbda_dir / "function-history.json", "lastBuild", {
             "uncompressedSize": function_uncompressed_size,
             "compressedSize": function_compressed_size,
             "createdDate": datetime.now().isoformat()
         })
         pymbda_print("Updated function-history.json")
     finally:
-        shutil.rmtree(work_dir / "function", ignore_errors=True)
+        shutil.rmtree(function_dir, ignore_errors=True)
 
 
 def layers_deploy(args: List[str]):
@@ -259,10 +253,11 @@ def layers_deploy(args: List[str]):
     parsed_args = vars(parser.parse_args(args))
 
     work_dir = Path(f"layers/{parsed_args['folder_name']}")
+    pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
 
-    layer = _layer_read_cfg(work_dir)
+    layer = _layer_read_cfg(pymbda_dir)
 
     with open(work_dir / "layer.zip", "rb") as zip:
         pymbda_print("Deploying layer ...")
@@ -277,7 +272,7 @@ def layers_deploy(args: List[str]):
         pymbda_print("Layer deployed successfully")
         aws_layer.pop("ResponseMetadata", None)
         pymbda_print(f"Layer version ARN: {aws_layer['LayerVersionArn']}")
-        history_append(work_dir / "layer-history.json", "deployments", aws_layer)
+        history_append(pymbda_dir / "layer-history.json", "deployments", aws_layer)
         pymbda_print("Updated layer-history.json")
 
 
@@ -287,10 +282,11 @@ def functions_deploy(args: List[str]):
     parsed_args = vars(parser.parse_args(args))
 
     work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
 
-    function = _functions_read_cfg(work_dir)
+    function = _functions_read_cfg(pymbda_dir)
 
     try:
         client.get_function(FunctionName=function.name)
@@ -351,7 +347,7 @@ def functions_deploy(args: List[str]):
         pymbda_print("Function deployed successfully")
         pymbda_print(f"Function version ARN: {aws_function['FunctionArn']}")
         aws_function.pop("ResponseMetadata", None)
-        history_append(work_dir / "function-history.json", "deployments", aws_function)
+        history_append(pymbda_dir / "function-history.json", "deployments", aws_function)
         pymbda_print("Updated function-history.json")
 
 
@@ -361,14 +357,15 @@ def functions_publish(args: List[str]):
     parsed_args = vars(parser.parse_args(args))
 
     work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
 
-    function = _functions_read_cfg(work_dir)
+    function = _functions_read_cfg(pymbda_dir)
 
     aws_function = client.publish_version(FunctionName=function.name)
     aws_function.pop("ResponseMetadata", None)
-    history_append(work_dir / "function-history.json", "publishments", aws_function)
+    history_append(pymbda_dir / "function-history.json", "publishments", aws_function)
     pymbda_print("Updated function-history.json")
 
 
@@ -380,10 +377,11 @@ def functions_alias(args: List[str]):
     parsed_args = vars(parser.parse_args(args))
 
     work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
 
-    function = _functions_read_cfg(work_dir)
+    function = _functions_read_cfg(pymbda_dir)
 
     try:
         client.get_alias(FunctionName=function.name, Name=parsed_args['alias_name'])
@@ -404,7 +402,7 @@ def functions_alias(args: List[str]):
             FunctionVersion=parsed_args['version']
         )
     aws_function_alias.pop("ResponseMetadata", None)
-    history_append(work_dir / "function-history.json", "aliases", aws_function_alias)
+    history_append(pymbda_dir / "function-history.json", "aliases", aws_function_alias)
     pymbda_print("Updated function-history.json")
 
 

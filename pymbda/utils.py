@@ -46,14 +46,6 @@ def history_set(path: Path, group: str, data):
         f.truncate()
 
 
-def uuid64():
-    return base64.b64encode(uuid.uuid4().bytes).rstrip(b"=").decode('ascii').replace("+", "_").replace("/", "-")
-
-
-def uuid64_double():
-    return uuid64() + uuid64()
-
-
 def get_dir_size(path: str):
     total = 0
     with os.scandir(path) as it:
@@ -122,6 +114,19 @@ def input_int(prompt: str, min: int = float("-inf"), max: int = float("inf"), de
             if default is not None and pre_value == "":
                 return default
             value = int(pre_value)
+        except ValueError:
+            continue
+    return value
+
+
+def input_float(prompt: str, min: int = float("-inf"), max: int = float("inf"), default: int = None):
+    value = None
+    while value is None or min >= value >= max:
+        try:
+            pre_value = input(prompt)
+            if default is not None and pre_value == "":
+                return default
+            value = float(pre_value)
         except ValueError:
             continue
     return value

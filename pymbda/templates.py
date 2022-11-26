@@ -8,13 +8,11 @@ resources:
     deploy [folder_name]
     publish [folder_name]
     alias [folder_name] [alias_name] [version]
-    gentoken [folder_name]
 
   layers        AWS Lambda Layers
     init [folder_name]
     build [folder_name]
     deploy [folder_name]
-    gentoken [folder_name]
 """
 
 
@@ -35,6 +33,9 @@ env.bak/
 **/env.bak/
 venv.bak/
 **/venv.bak/
+
+__pymbda__/
+**/__pymbda__/
 
 Dockerfile
 layer.json
@@ -116,7 +117,7 @@ LAYER_INIT_JSON = """{
     "name": "{{name}}",
     "description": "{{description}}",
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "__pymbda__/Dockerfile"
     },
     "deploy": {
         "compatibleRuntimes": ["{{runtime}}"],
@@ -130,7 +131,7 @@ FUNCTION_INIT_JSON = """{
     "name": "{{name}}",
     "description": "{{description}}",
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "__pymbda__/Dockerfile"
     },
     "deploy": {
         "runtime": "{{runtime}}",
