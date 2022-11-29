@@ -60,8 +60,8 @@ def functions_init(args: List[str]):
         "runtime": input("> Runtime [default: python3.8]: ") or "python3.8",
         "architecture": input_choice("> Architecture [select: arm64, x86-64; default: arm64]: ", ("arm64", "x86-64", "")) or "arm64",
         "handler": input_validated("> Handler [format: {pythonFile}.{functionName}; default: index.handler]: ", is_valid_handler) or "index.handler",
-        "timeout": input_int("> Timeout [unit: seconds; range: 1~inf; default: 3]: ", min=1, default=3),
-        "memorySize": input_int("> Memory Size [unit: MB; range: 1~inf; default: 128]: ", min=1, default=128),
+        "timeout": input_int("> Timeout [unit: seconds; range: 1~inf; default: 3]: ", min=1, default=1),
+        "memorySize": input_int("> Memory Size [unit: MB; range: 128~inf; default: 128]: ", min=128, default=128),
         "ephemeralStorageSize": input_int("> Ephemeral Storage Size [unit: MB; range: 512~inf; default: 512]: ", min=512, default=512),
     }
     template_vars["handlerPythonFile"], template_vars["handlerFunctionName"] = template_vars["handler"].split(".")
@@ -148,7 +148,7 @@ def layers_build(args: List[str]):
         if build_args_inject:
             build_args_inject += " "
         build_args_inject += f"--build-arg {arg_key}={arg_value}"
-    process_cmd = f"docker build -f {layer.build.dockerfile} {build_args_inject} --progress=plain --output layer ."
+    process_cmd = f"docker build -f {layer.build.dockerfile} {build_args_inject} --progress=plain --output __pymbda__/layer ."
 
     try:
         pymbda_print("Building layer ...")
@@ -163,11 +163,11 @@ def layers_build(args: List[str]):
         if build_process_code != 0:
             pymbda_print(f"Failed to build layer (code: {build_process_code})")
             sys.exit(1)
-        layer_dir = work_dir / 'layer'
+        layer_dir = pymbda_dir / 'layer'
         shutil.make_archive(layer_dir, 'zip', layer_dir)
         pymbda_print("Layer built successfully")
         layer_uncompressed_size = get_dir_size(layer_dir)
-        layer_compressed_size = os.path.getsize(work_dir / 'layer.zip')
+        layer_compressed_size = os.path.getsize(pymbda_dir / 'layer.zip')
         if parsed_args["size_profile"]:
             pymbda_print("Layer uncompressed size profile - top 20 big files")
             profile_dir_size(layer_dir)
@@ -211,7 +211,7 @@ def functions_build(args: List[str]):
         if build_args_inject:
             build_args_inject += " "
         build_args_inject += f"--build-arg {arg_key}={arg_value}"
-    process_cmd = f"docker build -f {function.build.dockerfile} {build_args_inject} --progress=plain --output function ."
+    process_cmd = f"docker build -f {function.build.dockerfile} {build_args_inject} --progress=plain --output __pymbda__/function ."
 
     try:
         pymbda_print("Building function ...")
@@ -226,11 +226,11 @@ def functions_build(args: List[str]):
         if build_process_code != 0:
             pymbda_print(f"Failed to build function (code: {build_process_code})")
             sys.exit(1)
-        function_dir = work_dir / 'function'
+        function_dir = pymbda_dir / 'function'
         shutil.make_archive(function_dir, 'zip', function_dir)
         pymbda_print("Function built successfully")
         function_uncompressed_size = get_dir_size(function_dir)
-        function_compressed_size = os.path.getsize(work_dir / 'function.zip')
+        function_compressed_size = os.path.getsize(pymbda_dir / 'function.zip')
         if parsed_args["size_profile"]:
             pymbda_print("Function uncompressed size profile - top 20 big files")
             profile_dir_size(function_dir)
@@ -344,7 +344,7 @@ def functions_deploy(args: List[str]):
                 FunctionName=function.name,
             )
         pymbda_print("Function deployed successfully")
-        pymbda_print(f"Function version ARN: {aws_function['FunctionArn']}")
+        pymbda_print(f"Function ARN: {aws_function['FunctionArn']}")
         aws_function.pop("ResponseMetadata", None)
         history_append(pymbda_dir / "function-history.json", "deployments", aws_function)
         pymbda_print("Updated function-history.json")
@@ -362,7 +362,10 @@ def functions_publish(args: List[str]):
 
     function = _functions_read_cfg(pymbda_dir)
 
+    pymbda_print("Publishing function version ...")
     aws_function = client.publish_version(FunctionName=function.name)
+    pymbda_print("Function version published successfully")
+    pymbda_print(f"Function version ARN: {aws_function['FunctionArn']}")
     aws_function.pop("ResponseMetadata", None)
     history_append(pymbda_dir / "function-history.json", "publishments", aws_function)
     pymbda_print("Updated function-history.json")
@@ -388,6 +391,7 @@ def functions_alias(args: List[str]):
     except client.exceptions.ResourceNotFoundException:
         alias_exists = False
 
+    pymbda_print(f"Creating function alias '{parsed_args['alias_name']}' with version '{parsed_args['version']}' ...")
     if not alias_exists:
         aws_function_alias = client.create_alias(
             FunctionName=function.name,
@@ -400,6 +404,7 @@ def functions_alias(args: List[str]):
             Name=parsed_args['alias_name'],
             FunctionVersion=parsed_args['version']
         )
+    pymbda_print("Function alias created successfully")
     aws_function_alias.pop("ResponseMetadata", None)
     history_append(pymbda_dir / "function-history.json", "aliases", aws_function_alias)
     pymbda_print("Updated function-history.json")
