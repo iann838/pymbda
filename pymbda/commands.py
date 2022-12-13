@@ -60,8 +60,8 @@ def functions_init(args: List[str]):
         "runtime": input("> Runtime [default: python3.8]: ") or "python3.8",
         "architecture": input_choice("> Architecture [select: arm64, x86-64; default: arm64]: ", ("arm64", "x86-64", "")) or "arm64",
         "handler": input_validated("> Handler [format: {pythonFile}.{functionName}; default: index.handler]: ", is_valid_handler) or "index.handler",
-        "timeout": input_int("> Timeout [unit: seconds; range: 1~inf; default: 3]: ", min=1, default=1),
-        "memorySize": input_int("> Memory Size [unit: MB; range: 128~inf; default: 128]: ", min=128, default=128),
+        "timeout": input_int("> Timeout [unit: seconds; range: 1~inf; default: 1]: ", min=1, default=1),
+        "memorySize": input_int("> Memory Size [unit: MB; range: 128~inf; default: 512]: ", min=128, default=512),
         "ephemeralStorageSize": input_int("> Ephemeral Storage Size [unit: MB; range: 512~inf; default: 512]: ", min=512, default=512),
     }
     template_vars["handlerPythonFile"], template_vars["handlerFunctionName"] = template_vars["handler"].split(".")
@@ -77,9 +77,9 @@ def functions_init(args: List[str]):
         f.write(replace_template_vars(FUNCTION_PYTHON_INIT_DOCKERFILE, alt_template_vars))
     with open(pymbda_dir / "function.json", "w+") as f:
         f.write(replace_template_vars(FUNCTION_INIT_JSON, template_vars))
-    with open(pymbda_dir / "requirements.txt", "w+") as f:
+    with open(work_dir / "requirements.txt", "w+") as f:
         f.write(replace_template_vars(FUNCTION_INIT_REQUIREMENTS_TXT, template_vars))
-    with open(pymbda_dir / (template_vars["handlerPythonFile"] + ".py"), "w+") as f:
+    with open(work_dir / (template_vars["handlerPythonFile"] + ".py"), "w+") as f:
         f.write(replace_template_vars(FUNCTION_HANDLER, template_vars))
     pymbda_print(f"Successfully initiated function {parsed_args['folder_name']}")
     pymbda_print(f"Further configurations can be made directly on function.json")
@@ -95,6 +95,7 @@ def layers_init(args: List[str]):
         return
 
     work_dir = Path(f"layers/{parsed_args['folder_name']}")
+    Path(f"layers/__init__.py").touch()
     pymbda_dir = work_dir / "__pymbda__/"
 
     template_vars = {
@@ -115,7 +116,7 @@ def layers_init(args: List[str]):
         f.write(replace_template_vars(LAYER_PYTHON_INIT_DOCKERFILE, alt_template_vars))
     with open(pymbda_dir / "layer.json", "w+") as f:
         f.write(replace_template_vars(LAYER_INIT_JSON, template_vars))
-    with open(pymbda_dir / "requirements.txt", "w+") as f:
+    with open(work_dir / "requirements.txt", "w+") as f:
         f.write(replace_template_vars(LAYER_INIT_REQUIREMENTS_TXT, template_vars))
     pymbda_print(f"Successfully initiated layer {parsed_args['folder_name']}")
     pymbda_print(f"Further configurations can be made directly on layer.json")
@@ -258,7 +259,7 @@ def layers_deploy(args: List[str]):
 
     layer = _layer_read_cfg(pymbda_dir)
 
-    with open(work_dir / "layer.zip", "rb") as zip:
+    with open(pymbda_dir / "layer.zip", "rb") as zip:
         pymbda_print("Deploying layer ...")
         aws_layer = client.publish_layer_version(
             LayerName=layer.name,
@@ -293,7 +294,7 @@ def functions_deploy(args: List[str]):
     except client.exceptions.ResourceNotFoundException:
         function_exists = False
 
-    with open(work_dir / "function.zip", "rb") as zip:
+    with open(pymbda_dir / "function.zip", "rb") as zip:
         pymbda_print("Deploying function ...")
         if not function_exists:
             aws_function = client.create_function(
