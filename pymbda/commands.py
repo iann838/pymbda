@@ -38,6 +38,7 @@ from .utils import (
     profile_dir_size,
     pymbda_print,
     replace_template_vars,
+    resolve_work_dir,
 )
 
 
@@ -50,7 +51,7 @@ def functions_init(args: List[str]):
         pymbda_print("Function name must be a valid python module name")
         return
 
-    work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    work_dir = resolve_work_dir("functions", parsed_args['folder_name'])
     pymbda_dir = work_dir / "__pymbda__/"
 
     template_vars = {
@@ -65,7 +66,7 @@ def functions_init(args: List[str]):
         "ephemeralStorageSize": input_int("> Ephemeral Storage Size [unit: MB; range: 512~inf; default: 512]: ", min=512, default=512),
     }
     template_vars["handlerPythonFile"], template_vars["handlerFunctionName"] = template_vars["handler"].split(".")
-    work_dir.mkdir(parents=True)
+    work_dir.mkdir(parents=True, exist_ok=True)
     pymbda_dir.mkdir(parents=True)
 
     with open(work_dir / ".dockerignore", "w+") as f:
@@ -94,7 +95,7 @@ def layers_init(args: List[str]):
         pymbda_print("Function name must be a valid python module name")
         return
 
-    work_dir = Path(f"layers/{parsed_args['folder_name']}")
+    work_dir = resolve_work_dir("layers", parsed_args['folder_name'])
     Path(f"layers/__init__.py").touch()
     pymbda_dir = work_dir / "__pymbda__/"
 
@@ -104,7 +105,7 @@ def layers_init(args: List[str]):
         "runtime": input("> Runtime [default: python3.8]: ") or "python3.8",
         "architecture": input_choice("> Architecture [select: arm64, x86-64; default: arm64]: ", ("arm64", "x86-64", "")) or "arm64",
     }
-    work_dir.mkdir(parents=True)
+    work_dir.mkdir(parents=True, exist_ok=True)
     pymbda_dir.mkdir(parents=True)
 
     with open(work_dir / ".dockerignore", "w+") as f:
@@ -138,7 +139,7 @@ def layers_build(args: List[str]):
     parser.add_argument('--size-profile', type=int, default=0)
     parsed_args = vars(parser.parse_args(args))
 
-    work_dir = Path(f"layers/{parsed_args['folder_name']}")
+    work_dir = resolve_work_dir("layers", parsed_args['folder_name'])
     pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     layer = _layer_read_cfg(pymbda_dir)
@@ -201,7 +202,7 @@ def functions_build(args: List[str]):
     parser.add_argument('--size-profile', type=int, default=0)
     parsed_args = vars(parser.parse_args(args))
 
-    work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    work_dir = resolve_work_dir("functions", parsed_args['folder_name'])
     pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     function = _functions_read_cfg(pymbda_dir)
@@ -252,7 +253,7 @@ def layers_deploy(args: List[str]):
     parser.add_argument("folder_name", type=str)
     parsed_args = vars(parser.parse_args(args))
 
-    work_dir = Path(f"layers/{parsed_args['folder_name']}")
+    work_dir = resolve_work_dir("layers", parsed_args['folder_name'])
     pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
@@ -281,7 +282,7 @@ def functions_deploy(args: List[str]):
     parser.add_argument("folder_name", type=str)
     parsed_args = vars(parser.parse_args(args))
 
-    work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    work_dir = resolve_work_dir("functions", parsed_args['folder_name'])
     pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
@@ -356,7 +357,7 @@ def functions_publish(args: List[str]):
     parser.add_argument("folder_name", type=str)
     parsed_args = vars(parser.parse_args(args))
 
-    work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    work_dir = resolve_work_dir("functions", parsed_args['folder_name'])
     pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
@@ -373,13 +374,13 @@ def functions_publish(args: List[str]):
 
 
 def functions_alias(args: List[str]):
-    parser = argparse.ArgumentParser(description="Publish AWS Lambda Function")
+    parser = argparse.ArgumentParser(description="Alias AWS Lambda Function")
     parser.add_argument("folder_name", type=str)
     parser.add_argument("alias_name", type=str)
     parser.add_argument("version", type=str)
     parsed_args = vars(parser.parse_args(args))
 
-    work_dir = Path(f"functions/{parsed_args['folder_name']}")
+    work_dir = resolve_work_dir("functions", parsed_args['folder_name'])
     pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")

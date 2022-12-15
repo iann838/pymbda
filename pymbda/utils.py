@@ -20,6 +20,12 @@ def explore_aws_cfg(paths: List[Path]):
             break
 
 
+def resolve_work_dir(resource: str, folder_name: str):
+    if folder_name == ".":
+        return Path(".")
+    return Path(f"{resource}/{folder_name}")
+
+
 def history_append(path: Path, group: str, data):
     if not os.path.exists(path):
         with open(path, "w+") as f:
