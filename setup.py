@@ -21,7 +21,7 @@ if sys.version_info.major != 3 and sys.version_info.minor < 8:
 
 setup(
     name="pymbda",
-    version="0.3.0",
+    version="0.3.1",
     author="Paaksing",
     author_email="paaksingtech@gmail.com",
     url="https://github.com/paaksing/pymbda",
