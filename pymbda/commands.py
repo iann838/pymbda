@@ -47,7 +47,7 @@ def functions_init(args: List[str]):
     parser.add_argument("folder_name", type=str)
     parsed_args = vars(parser.parse_args(args))
 
-    if not is_valid_module_name(parsed_args['folder_name']):
+    if parsed_args['folder_name'] != "." and not is_valid_module_name(parsed_args['folder_name']):
         pymbda_print("Function name must be a valid python module name")
         return
 
@@ -95,7 +95,7 @@ def layers_init(args: List[str]):
         pymbda_print("Function name must be a valid python module name")
         return
 
-    work_dir = resolve_work_dir("layers", parsed_args['folder_name'])
+    work_dir = Path("layers") / parsed_args['folder_name']
     Path(f"layers/__init__.py").touch()
     pymbda_dir = work_dir / "__pymbda__/"
 
@@ -139,7 +139,7 @@ def layers_build(args: List[str]):
     parser.add_argument('--size-profile', type=int, default=0)
     parsed_args = vars(parser.parse_args(args))
 
-    work_dir = resolve_work_dir("layers", parsed_args['folder_name'])
+    work_dir = Path("layers") / parsed_args['folder_name']
     pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     layer = _layer_read_cfg(pymbda_dir)
@@ -253,7 +253,7 @@ def layers_deploy(args: List[str]):
     parser.add_argument("folder_name", type=str)
     parsed_args = vars(parser.parse_args(args))
 
-    work_dir = resolve_work_dir("layers", parsed_args['folder_name'])
+    work_dir = Path("layers") / parsed_args['folder_name']
     pymbda_dir = work_dir / "__pymbda__/"
     explore_aws_cfg([work_dir, Path()])
     client = boto3.client("lambda")
